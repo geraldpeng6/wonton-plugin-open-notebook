@@ -1,43 +1,28 @@
-# 云吞插件模板
+# AI 资料笔记本（Open Notebook）
 
-开发流程见[插件开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md)。
+把网址、文件、视频链接丢进笔记本，AI 读完帮你答题、写摘要，还能生成播客。本插件用上游官方镜像
+[lfnovo/open_notebook](https://hub.docker.com/r/lfnovo/open_notebook)（单容器版，内含 SurrealDB、API、
+worker 和网页），按版本摘要固定，不改上游镜像。
 
-这是一个能安装的示例插件 `app.example.hello`：使用 nginx 官方镜像显示问候页，经网关的 `sso: proxy` 注入用户名，页面显示“你好，<用户名>”。示例没有应用账号、持久化数据或 MCP 工具。
+- 上游文档：https://github.com/lfnovo/open-notebook/tree/main/docs
+- 上游许可证：MIT；插件包的许可证见 [LICENSE](LICENSE)，图标来源和许可见 [NOTICE](NOTICE)。
 
-## 示例文件
+## 云吞里的行为
 
-| 路径 | 内容 |
-| --- | --- |
-| `docker-compose.yml` | 示例清单、nginx 服务和三个 `configs` |
-| `web/default.conf.template` | nginx 配置，启用 SSI 回显用户名并提供健康检查入口；只放行来自核心地址（`${WONTON_CORE_ADDRESS}`）的请求，其余来源 403 |
-| `web/index.html` | 问候页 |
-| `web/tokens.css` | 页面主题变量的后备值 |
-| `tabs/` | 示例主页的应用页面图标 |
-| `screenshots/home.png` | 商店详情页的示例截图 |
-| `scripts/smoke-probes.sh` | 检查真实页面和网关注入身份的插件探针 |
+- 模型：问问题、摘要、播客都走云吞的模型网关。插件把网关写成上游「OpenAI Compatible」服务商的
+  环境变量回退（`OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_API_KEY`，见上游
+  `open_notebook/ai/key_provider.py`）；装好后在上游设置页发现并添加网关里的模型即可。
+  网关缺某类模型（如语音合成）时对应功能用不了，应用如实报错。
+- 登录：应用只有一个口令（无多用户）。口令由云吞生成，主人在插件详情页「应用密码」查看；家人共用同一份
+  笔记本，口令由主人分发。
+- 数据：`/app/data`（上传的资料、抽取缓存）和 `/mydata`（内嵌 SurrealDB 的数据库）都挂在插件数据目录下，
+  升级、重装不丢；卸载选删数据才清掉。
+- 网页入口只经网关暴露 8502；应用内 `/api/*` 由上游 Next.js 反代到容器内的 5055，5055 不对外。
+- 健康检查：上游 `GET /health`、`GET /api/config`（带真实数据库查询的 `dbStatus`）和网页 8502。
 
-从模板创建自己的插件后，替换示例清单、网页和素材；具体步骤见[写插件](https://github.com/wontonapp/wonton-docs/blob/main/develop.md#写插件)。
+## 上游镜像版本
 
-## 对着别的栈跑探针
-
-`probes`、`api`、`session` 按 `.wonton/.env` 的 `WONTON_BASE_DOMAIN` 拼核心地址，`up` 起的栈自己写这个键。插件装进别人的栈、或者对着已有环境排查时，把那套栈的基础域名写进 `.wonton/.env`，不要只按实例名猜地址：实例名只是资源名前缀，网关按 Host 认域名，拼错了会回“没有安装”。
-
-```bash
-WONTON_BASE_DOMAIN=wonton.localhost
-```
-
-## 核心镜像
-
-检查和冒烟默认用套件里的核心镜像（`ghcr.io/wontonapp/wonton-core:main`）；要固定别的核心镜像，在仓库 Settings → Variables 设 `WONTON_CORE_IMAGE`，手动触发“检查”时填的 `core-image` 输入优先。
-
-## 更新开发套件
-
-```bash
-scripts/dev.sh kit-update
-```
-
-在从模板新建的插件仓库中更新套件；本仓库是套件源头，执行时只提示并退出。版本、可选引用和自定义脚本约定见[开发指南](https://github.com/wontonapp/wonton-docs/blob/main/develop.md#更新开发套件)。
-
-## 图标
-
-`icon.svg` 是本仓库原创线条图标，按本仓库 MIT 许可证分发，见 [NOTICE](NOTICE)。
+上游单容器镜像（`*-single` 标签）上游已声明 v2 将移除（见上游文档
+[single-container.md](https://github.com/lfnovo/open-notebook/blob/main/docs/1-INSTALLATION/single-container.md)），
+v1 内继续更新；上游推荐的新装是 Docker Compose 双容器版。云吞插件按包内 compose 就能迁双容器，
+等上游移除单容器版时再迁。
